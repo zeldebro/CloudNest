@@ -46,6 +46,10 @@ node_groups = {
 # =========================================================
 # KARPENTER NodePools - tune Spot/limits/families here (no module edits).
 # =========================================================
+# Karpenter Helm chart version. Keep >= 1.1.1 (older 1.0.0 ships a v0->v1
+# migration hook that pulls the now-removed public.ecr.aws/bitnami/kubectl -> 401).
+karpenter_version = "1.1.1"
+
 # EC2NodeClass blueprints: "default" for CPU, "gpu" for GPU (bigger disk).
 ec2_node_classes = {
   default = {

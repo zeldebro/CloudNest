@@ -32,7 +32,9 @@ variable "oidc_provider_url" {
 variable "karpenter_version" {
   description = "Karpenter Helm chart version"
   type        = string
-  default     = "1.0.0"
+  # 1.1.1+ dropped the v0->v1 migration post-install hook that pulled the now-dead
+  # public.ecr.aws/bitnami/kubectl image (401 after Bitnami sunset their registry).
+  default = "1.1.1"
 }
 
 variable "karpenter_namespace" {

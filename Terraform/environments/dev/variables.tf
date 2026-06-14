@@ -194,6 +194,13 @@ variable "enable_observability" {
   default     = false
 }
 
+# --- Karpenter ---
+variable "karpenter_version" {
+  description = "Karpenter Helm chart version (>=1.1.1 avoids the dead bitnami/kubectl migration hook)."
+  type        = string
+  default     = "1.1.1"
+}
+
 variable "monitoring_namespace" {
   description = "Namespace for the monitoring stack."
   type        = string

@@ -233,11 +233,12 @@ module "ecr" {
 # Karpenter module: node autoscaler (controller IRSA + reused node role + SQS + Helm).
 # Consumes EKS (cluster + node role) and IRSA (OIDC provider) outputs.
 module "karpenter" {
-  source           = "../../modules/karpenter"
-  project          = var.project
-  environment      = var.environment
-  cluster_name     = module.eks.cluster_name
-  cluster_endpoint = module.eks.cluster_endpoint
+  source            = "../../modules/karpenter"
+  project           = var.project
+  environment       = var.environment
+  cluster_name      = module.eks.cluster_name
+  cluster_endpoint  = module.eks.cluster_endpoint
+  karpenter_version = var.karpenter_version
 
   # IRSA wiring
   oidc_provider_arn = module.irsa.oidc_provider_arn
