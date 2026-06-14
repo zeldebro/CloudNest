@@ -25,9 +25,13 @@ resource "helm_release" "gitlab_runner" {
     value = var.gitlab_url
   }
 
-  # Registration token - read from Secrets Manager (not from env/CI)
+  # Authentication token (glrt-...) from Secrets Manager. The MODERN flow:
+  # GitLab 16+ removed registration tokens. You create the runner in the GitLab
+  # UI (Settings > CI/CD > Runners > New project runner), which returns a
+  # `glrt-...` AUTHENTICATION token. Setting `runnerToken` makes the runner use
+  # it directly and SKIP the deprecated `register` call (no more 403).
   set_sensitive {
-    name  = "runnerRegistrationToken"
+    name  = "runnerToken"
     value = jsondecode(data.aws_secretsmanager_secret_version.runner_token.secret_string)["token"]
   }
 

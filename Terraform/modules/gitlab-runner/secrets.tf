@@ -46,13 +46,18 @@ resource "aws_secretsmanager_secret_version" "gitlab" {
 }
 
 # =========================================================
-# Runner registration token - stored in Secrets Manager.
-# Terraform creates the CONTAINER with a placeholder; you set the REAL
-# token ONCE out-of-band (so it's never in code, env, or CI):
+# Runner AUTHENTICATION token - stored in Secrets Manager.
+# GitLab 16+ removed registration tokens. Create the runner in the GitLab UI:
+#   Project (or Group) > Settings > CI/CD > Runners > New project runner
+# GitLab returns an AUTHENTICATION token that starts with "glrt-".
+#
+# Terraform creates the CONTAINER with a placeholder; you set the REAL token
+# ONCE out-of-band (so it's never in code, env, or CI):
 #
 #   aws secretsmanager put-secret-value \
+#     --region us-east-1 \
 #     --secret-id cloudnest-dev-gitlab-runner-token \
-#     --secret-string '{"token":"glrt-xxxxxxxx"}'
+#     --secret-string '{"token":"glrt-xxxxxxxxxxxxxxxx"}'
 #
 # lifecycle ignore_changes => Terraform won't overwrite your real token.
 # =========================================================
