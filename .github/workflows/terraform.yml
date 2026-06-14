@@ -149,19 +149,11 @@ jobs:
         env:
           TF_VAR_gitlab_username: ${{ secrets.TF_VAR_GITLAB_USERNAME }}
         run: |
-          set -euo pipefail
-          # -detailed-exitcode: 0 = no changes, 2 = changes, 1 = real error.
-          # Treat 0 and 2 as success; only a genuine error (1) fails the job.
-          set +e
-          terraform plan -lock-timeout=5m -var-file=dev.tfvars -out=tfplan -detailed-exitcode
-          code=$?
-          set -e
-          if [ "$code" -eq 1 ]; then
-            echo "::error::Terraform plan failed."
-            exit 1
-          fi
-          terraform show -no-color tfplan > plan.txt
-          echo "Plan completed (exit code $code: 0=no changes, 2=changes)."
+          set -o pipefail
+          # Plain plan: exit 0 on success (changes or not), exit 1 on real error.
+          # tee -> plan.txt captures the FULL output (incl. any error) for the
+          # PR comment and the job log, so failures are always visible.
+          terraform plan -lock-timeout=5m -var-file=dev.tfvars -out=tfplan -no-color 2>&1 | tee plan.txt
 
       # Save the binary plan so APPLY uses the EXACT reviewed plan.
       - name: Upload plan artifact
