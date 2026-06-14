@@ -298,6 +298,14 @@ jobs:
           ACCT=$(aws sts get-caller-identity --query Account --output text)
           aws s3 rm "s3://cloudnest-dev-loki-$ACCT" --recursive || true
           aws s3 rm "s3://cloudnest-dev-alb-logs-$ACCT" --recursive || true
+          # Remove manually-added members from the EKS IAM groups, otherwise
+          # IAM DeleteGroup fails with DeleteConflict ("must remove users first").
+          for G in cloudnest-dev-eks-admins-group cloudnest-dev-eks-developers-group cloudnest-dev-eks-readonly-group; do
+            for U in $(aws iam get-group --group-name "$G" --query 'Users[].UserName' --output text 2>/dev/null); do
+              echo "Removing $U from $G"
+              aws iam remove-user-from-group --group-name "$G" --user-name "$U" || true
+            done
+          done
 
       - name: Terraform Init
         run: terraform init -lock-timeout=5m
