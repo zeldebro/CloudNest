@@ -91,7 +91,7 @@ jobs:
       # Static security analysis (CIS / misconfig). Fails on CRITICAL/HIGH.
       # Set exit-code: "0" for warnings-only while you triage findings.
       - name: Trivy IaC scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           scan-type: config
           scan-ref: Terraform
