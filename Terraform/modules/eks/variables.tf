@@ -30,6 +30,18 @@ variable "cluster_security_group_id" {
   type        = string
 }
 
+variable "endpoint_public_access" {
+  description = "Whether the EKS API server is reachable publicly (CI on GitHub-hosted runners needs this true)."
+  type        = bool
+  default     = true
+}
+
+variable "public_access_cidrs" {
+  description = "CIDRs allowed to reach the public EKS API endpoint. Tighten from dev.tfvars."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 # =========================================================
 # ALL node groups defined as ONE map of objects.
 # To add/change a node group in future: edit tfvars ONLY.

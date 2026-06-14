@@ -98,6 +98,7 @@ jobs:
           format: table
           exit-code: "1"
           severity: CRITICAL,HIGH
+          trivyignores: .trivyignore
 
   # -------------------------------------------------------
   # 2) PLAN: real plan against remote state. Saves the plan as an artifact

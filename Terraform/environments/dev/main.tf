@@ -113,6 +113,10 @@ module "eks" {
   eks_version                = var.eks_version
   node_groups                = var.node_groups
 
+  # API endpoint exposure (tighten public_access_cidrs in dev.tfvars)
+  endpoint_public_access = var.cluster_endpoint_public_access
+  public_access_cidrs    = var.cluster_public_access_cidrs
+
   # Cross-module wiring
   private_subnet_ids        = module.vpc.private_subnet_ids
   cluster_security_group_id = module.security.cluster_security_group_id

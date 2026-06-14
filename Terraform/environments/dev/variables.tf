@@ -39,6 +39,18 @@ variable "eks_version" {
   type        = string
 }
 
+variable "cluster_endpoint_public_access" {
+  description = "Expose the EKS API publicly (CI on GitHub-hosted runners needs true)."
+  type        = bool
+  default     = true
+}
+
+variable "cluster_public_access_cidrs" {
+  description = "CIDRs allowed to reach the public EKS API. Restrict to your IP(s) to reduce exposure."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 # ALL node groups live here as data. Add/change a group = edit dev.tfvars ONLY.
 variable "node_groups" {
   description = "Map of EKS managed node groups. Key = node group name."

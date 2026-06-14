@@ -47,6 +47,16 @@ data "aws_iam_policy_document" "loki_s3" {
       "${aws_s3_bucket.cloudnest_loki_s3_bucket.arn}/*"
     ]
   }
+
+  # Needed to read/write objects encrypted with the bucket's CMK
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey"
+    ]
+    resources = [aws_kms_key.loki.arn]
+  }
 }
 
 resource "aws_iam_policy" "loki_s3" {
