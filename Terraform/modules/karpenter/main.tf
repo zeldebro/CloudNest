@@ -21,6 +21,11 @@ resource "helm_release" "cloudnest_karpenter" {
   chart      = "karpenter"
   version    = var.karpenter_version
 
+  # Wait until the controller is Ready. Generous timeout: on a fresh cluster the
+  # baseline nodes may still be finishing bootstrap when this runs.
+  wait    = true
+  timeout = 900
+
   values = [
     # Single source of truth: addon values template inside this module.
     # Env-specific values (cluster_name, etc.) arrive via Terraform variables.

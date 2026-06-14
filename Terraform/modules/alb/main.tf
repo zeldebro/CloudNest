@@ -10,6 +10,12 @@ resource "helm_release" "controller" {
   namespace  = "kube-system"
   version    = var.chart_version
 
+  # Block until the controller pods are actually Ready. Its mutating webhook
+  # intercepts ALL Service creation cluster-wide, so anything that depends on
+  # this module must not proceed until the webhook has live endpoints.
+  wait    = true
+  timeout = 600
+
   set {
     name  = "clusterName"
     value = var.cluster_name

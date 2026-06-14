@@ -331,7 +331,11 @@ module "observability" {
   # EFS module to guarantee the StorageClass + CSI driver exist before the
   # monitoring PVCs are created. Also needs the cluster + IRSA to be ready, and
   # the access entry so the helm/kubernetes providers authenticate (no 401).
-  depends_on = [module.efs, module.eks, module.irsa, module.addons, module.access]
+  # CRITICAL: also wait for the ALB controller (module.alb) - its mutating
+  # webhook intercepts ALL Service creation cluster-wide, so it MUST be Ready
+  # before observability creates Services, and for Karpenter so there is node
+  # capacity for the monitoring pods.
+  depends_on = [module.efs, module.eks, module.irsa, module.addons, module.access, module.alb, module.karpenter]
 }
 
 # GitLab Runner module: stores GitLab credentials in Secrets Manager (KMS-encrypted)

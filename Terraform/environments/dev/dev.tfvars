@@ -27,13 +27,13 @@ node_groups = {
   # SYSTEM baseline: hosts Karpenter controller + CoreDNS + system pods.
   # On-Demand + 2 nodes across AZs = stable HA home (Karpenter can't host itself).
   system = {
-    instance_types = ["m6i.large", "m5.large"]
+    instance_types = ["m6i.xlarge", "m5.xlarge"]
     capacity_type  = "ON_DEMAND" # system pods must NOT risk Spot reclaim
     ami_type       = "AL2023_x86_64_STANDARD"
     disk_size      = 50
-    desired_size   = 2 # one per AZ for HA
+    desired_size   = 3 # room for Karpenter + ALB controller + full observability at bootstrap
     min_size       = 2 # never below - Karpenter always needs a home
-    max_size       = 3 # small headroom
+    max_size       = 5 # headroom while the stack converges
     labels = {
       workload = "system"
     }
