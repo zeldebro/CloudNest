@@ -89,16 +89,19 @@ jobs:
         run: tflint --recursive --chdir ../..
 
       # Static security analysis (CIS / misconfig). Fails on CRITICAL/HIGH.
-      # Set exit-code: "0" for warnings-only while you triage findings.
+      # Accepted findings are documented in .trivyignore at the repo root,
+      # which Trivy auto-discovers from the working directory (no hard path).
       - name: Trivy IaC scan
         uses: aquasecurity/trivy-action@master
+        env:
+          # Absolute path always resolves (file is committed at the repo root).
+          TRIVY_IGNOREFILE: ${{ github.workspace }}/.trivyignore
         with:
           scan-type: config
           scan-ref: Terraform
           format: table
           exit-code: "1"
           severity: CRITICAL,HIGH
-          trivyignores: .trivyignore
 
   # -------------------------------------------------------
   # 2) PLAN: real plan against remote state. Saves the plan as an artifact
