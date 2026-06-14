@@ -48,6 +48,8 @@ env:
   # CI hygiene: non-interactive automation mode.
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
+  # Opt JS-based actions into Node.js 24 (Node 20 deprecated on runners).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   # -------------------------------------------------------
@@ -69,6 +71,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
       - name: Terraform fmt (check)
         run: terraform fmt -check -recursive ../..
@@ -136,6 +139,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
       - name: Terraform Init
         run: terraform init -lock-timeout=5m
@@ -145,8 +149,19 @@ jobs:
         env:
           TF_VAR_gitlab_username: ${{ secrets.TF_VAR_GITLAB_USERNAME }}
         run: |
-          terraform plan -lock-timeout=5m -var-file=dev.tfvars -out=tfplan
+          set -euo pipefail
+          # -detailed-exitcode: 0 = no changes, 2 = changes, 1 = real error.
+          # Treat 0 and 2 as success; only a genuine error (1) fails the job.
+          set +e
+          terraform plan -lock-timeout=5m -var-file=dev.tfvars -out=tfplan -detailed-exitcode
+          code=$?
+          set -e
+          if [ "$code" -eq 1 ]; then
+            echo "::error::Terraform plan failed."
+            exit 1
+          fi
           terraform show -no-color tfplan > plan.txt
+          echo "Plan completed (exit code $code: 0=no changes, 2=changes)."
 
       # Save the binary plan so APPLY uses the EXACT reviewed plan.
       - name: Upload plan artifact
@@ -205,6 +220,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
       - name: Download plan artifact
         uses: actions/download-artifact@v4
@@ -253,6 +269,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
       # Best-effort cleanup of resources created OUTSIDE Terraform state
       # (ALBs from the LB controller, type=LoadBalancer services) so the VPC
