@@ -11,6 +11,20 @@ locals {
   # (cloudnest-dev-github-actions). Account ID is resolved dynamically,
   # so no hardcoded ARN is needed. Override via var.runner_role_arn if desired.
   runner_role_arn = var.runner_role_arn != "" ? var.runner_role_arn : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project}-${var.environment}-github-actions"
+
+  # The IAM identity Terraform runs as in CI = the GitHub Actions OIDC role.
+  # It MUST have cluster-admin so the helm/kubectl/kubernetes providers can
+  # authenticate to the EKS API (otherwise: 401 "server asked for credentials").
+  # Granted via an EKS Access Entry below (an AWS-API call - needs NO cluster
+  # auth itself), so it self-bootstraps even on a cluster created by someone else.
+  terraform_runner_access = {
+    terraform-runner = {
+      principal_arn = local.runner_role_arn
+      policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+      scope_type    = "cluster"
+      namespaces    = []
+    }
+  }
 }
 
 # Current AWS account (used to build the runner role ARN without hardcoding it)
@@ -166,8 +180,9 @@ module "efs" {
   # Tuning from tfvars
   efs_config = var.efs_config
 
-  # Wait for cluster networking (vpc-cni) before the CSI node DaemonSet schedules
-  depends_on = [module.addons]
+  # Wait for cluster networking (vpc-cni) before the CSI node DaemonSet schedules,
+  # and for the access entry so the kubectl provider can authenticate (no 401).
+  depends_on = [module.addons, module.access]
 }
 
 # ALB module: AWS Load Balancer Controller (IRSA role + Helm install).
@@ -184,17 +199,21 @@ module "alb" {
   oidc_provider_arn = module.irsa.oidc_provider_arn
   oidc_provider_url = module.irsa.oidc_provider_url
 
-  # Wait for vpc-cni + CoreDNS so the controller pod has networking + DNS
-  depends_on = [module.addons]
+  # Wait for vpc-cni + CoreDNS so the controller pod has networking + DNS,
+  # and for the access entry so the helm provider can authenticate (no 401).
+  depends_on = [module.addons, module.access]
 }
 
 # Access module: EKS Access Entries (who can use the cluster + permission level).
 module "access" {
-  source         = "../../modules/access"
-  cluster_name   = module.eks.cluster_name
-  project        = var.project
-  environment    = var.environment
-  access_entries = var.eks_access_entries
+  source       = "../../modules/access"
+  cluster_name = module.eks.cluster_name
+  project      = var.project
+  environment  = var.environment
+  # Always include the Terraform runner (CI role) as cluster-admin so the
+  # helm/kubectl/kubernetes providers can authenticate. User-defined entries
+  # from tfvars are merged on top.
+  access_entries = merge(local.terraform_runner_access, var.eks_access_entries)
   access_roles   = var.eks_access_roles
 }
 
@@ -233,8 +252,9 @@ module "karpenter" {
   gpu_nodepool     = var.gpu_nodepool
   ec2_node_classes = var.ec2_node_classes
 
-  # Wait for vpc-cni + CoreDNS before the Karpenter controller schedules
-  depends_on = [module.addons]
+  # Wait for vpc-cni + CoreDNS before the Karpenter controller schedules,
+  # and for the access entry so the helm/kubectl providers authenticate (no 401).
+  depends_on = [module.addons, module.access]
 }
 
 # RDS module: private, low-cost PostgreSQL (db.t4g.micro) + KMS + Secrets Manager.
@@ -309,8 +329,9 @@ module "observability" {
 
   # efs-sc is referenced by NAME (string), so add an explicit dependency on the
   # EFS module to guarantee the StorageClass + CSI driver exist before the
-  # monitoring PVCs are created. Also needs the cluster + IRSA to be ready.
-  depends_on = [module.efs, module.eks, module.irsa, module.addons]
+  # monitoring PVCs are created. Also needs the cluster + IRSA to be ready, and
+  # the access entry so the helm/kubernetes providers authenticate (no 401).
+  depends_on = [module.efs, module.eks, module.irsa, module.addons, module.access]
 }
 
 # GitLab Runner module: stores GitLab credentials in Secrets Manager (KMS-encrypted)
@@ -328,7 +349,8 @@ module "gitlab_runner" {
   oidc_provider_arn = module.irsa.oidc_provider_arn
   oidc_provider_url = module.irsa.oidc_provider_url
 
-  # Wait for vpc-cni + CoreDNS so runner job pods get networking + DNS
-  depends_on = [module.addons]
+  # Wait for vpc-cni + CoreDNS so runner job pods get networking + DNS,
+  # and for the access entry so the helm provider can authenticate (no 401).
+  depends_on = [module.addons, module.access]
 }
 
