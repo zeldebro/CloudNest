@@ -22,10 +22,13 @@ resource "kubectl_manifest" "efs_storageclass" {
       provisioningMode = "efs-ap"
       fileSystemId     = aws_efs_file_system.this.id
       directoryPerms   = "700"
-      # PVCs land under /dynamic_provisioning/<pvc-name> with a unique access point
-      basePath              = "/dynamic_provisioning"
-      subPathPattern        = "$${.PVC.namespace}/$${.PVC.name}"
-      ensureUniqueDirectory = "true"
+      # EFS caps the access-point root directory path at 100 chars. StatefulSet
+      # PVC names (e.g. Prometheus) are huge, so DON'T build the path from the
+      # PVC name. Use the PV name (pvc-<uuid>) which is short AND already unique,
+      # and skip the extra unique-dir UUID. Keep basePath short too.
+      basePath              = "/ap"
+      subPathPattern        = "$${.PVName}"
+      ensureUniqueDirectory = "false"
     }
     reclaimPolicy     = "Delete"
     volumeBindingMode = "Immediate"

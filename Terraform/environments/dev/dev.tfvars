@@ -122,11 +122,21 @@ waf_allowed_ips = ["223.233.87.209/32"]
 gitlab_url      = "https://gitlab.com"
 gitlab_username = "admin"
 
+# Install the GitLab Runner? Keep false until you've created a runner in the
+# GitLab UI and stored its glrt-... auth token in Secrets Manager:
+#   aws secretsmanager put-secret-value --region us-east-1 \
+#     --secret-id cloudnest-dev-gitlab-runner-token \
+#     --secret-string '{"token":"glrt-xxxx"}'
+enable_gitlab_runner = false
+
 # =========================================================
 # EFS - shared ReadWriteMany (RWX) storage for PVCs.
 # Creates EFS + per-AZ mount targets + NFS SG + CSI driver + efs-sc StorageClass.
 # =========================================================
 enable_efs = true
+
+# Make efs-sc the cluster DEFAULT StorageClass (we remove the gp2 default).
+efs_set_default_storage_class = true
 
 # Optional tuning (defaults shown). throughput_mode "elastic" = pay-per-use.
 # efs_config = {

@@ -180,6 +180,10 @@ module "efs" {
   # Tuning from tfvars
   efs_config = var.efs_config
 
+  # Make efs-sc the cluster default StorageClass (so PVCs without an explicit
+  # storageClassName land on EFS). Pairs with removing the gp2 default.
+  set_default_storage_class = var.efs_set_default_storage_class
+
   # Wait for cluster networking (vpc-cni) before the CSI node DaemonSet schedules,
   # and for the access entry so the kubectl provider can authenticate (no 401).
   depends_on = [module.addons, module.access]
@@ -342,8 +346,12 @@ module "observability" {
 # GitLab Runner module: stores GitLab credentials in Secrets Manager (KMS-encrypted)
 # and installs the GitLab Runner via Helm. The runner registration token is read
 # from Secrets Manager (set it once via the AWS CLI - see modules/gitlab-runner/secrets.tf).
+# Gated by enable_gitlab_runner: keep false until you've created a runner in the
+# GitLab UI and stored its glrt-... auth token in Secrets Manager (otherwise the
+# runner pod fails to verify the token and blocks the apply).
 module "gitlab_runner" {
   source          = "../../modules/gitlab-runner"
+  count           = var.enable_gitlab_runner ? 1 : 0
   project         = var.project
   environment     = var.environment
   gitlab_url      = var.gitlab_url

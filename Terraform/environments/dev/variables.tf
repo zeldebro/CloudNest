@@ -201,6 +201,20 @@ variable "karpenter_version" {
   default     = "1.12.0"
 }
 
+# --- GitLab Runner ---
+variable "enable_gitlab_runner" {
+  description = "Feature flag: install the GitLab Runner. Keep false until a real glrt- auth token is stored in Secrets Manager."
+  type        = bool
+  default     = false
+}
+
+# --- EFS default StorageClass ---
+variable "efs_set_default_storage_class" {
+  description = "Make efs-sc the cluster default StorageClass (pairs with removing the gp2 default)."
+  type        = bool
+  default     = true
+}
+
 variable "monitoring_namespace" {
   description = "Namespace for the monitoring stack."
   type        = string
