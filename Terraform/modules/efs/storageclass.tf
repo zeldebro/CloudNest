@@ -26,8 +26,9 @@ resource "kubectl_manifest" "efs_storageclass" {
       # PVC names (e.g. Prometheus) are huge, so DON'T build the path from the
       # PVC name. Use the PV name (pvc-<uuid>) which is short AND already unique,
       # and skip the extra unique-dir UUID. Keep basePath short too.
+      # NOTE: the valid template tokens are .PV.name .PVC.name .PVC.namespace.
       basePath              = "/ap"
-      subPathPattern        = "$${.PVName}"
+      subPathPattern        = "$${.PV.name}"
       ensureUniqueDirectory = "false"
     }
     reclaimPolicy     = "Delete"
