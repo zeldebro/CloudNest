@@ -196,9 +196,9 @@ variable "enable_observability" {
 
 # --- Karpenter ---
 variable "karpenter_version" {
-  description = "Karpenter Helm chart version (>=1.1.1 avoids the dead bitnami/kubectl migration hook)."
+  description = "Karpenter Helm chart version. Must support the cluster K8s version (1.35); older releases panic on a version mismatch."
   type        = string
-  default     = "1.1.1"
+  default     = "1.12.0"
 }
 
 variable "monitoring_namespace" {

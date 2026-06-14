@@ -46,9 +46,11 @@ node_groups = {
 # =========================================================
 # KARPENTER NodePools - tune Spot/limits/families here (no module edits).
 # =========================================================
-# Karpenter Helm chart version. Keep >= 1.1.1 (older 1.0.0 ships a v0->v1
-# migration hook that pulls the now-removed public.ecr.aws/bitnami/kubectl -> 401).
-karpenter_version = "1.1.1"
+# Karpenter Helm chart version. Must support the cluster's K8s version (1.35):
+# older Karpenter releases hard-cap the supported K8s version and PANIC on a
+# mismatch. 1.12.0 is the latest and supports K8s 1.35. (Also >=1.1.1 so it has
+# no dead bitnami/kubectl migration hook.)
+karpenter_version = "1.12.0"
 
 # EC2NodeClass blueprints: "default" for CPU, "gpu" for GPU (bigger disk).
 ec2_node_classes = {
