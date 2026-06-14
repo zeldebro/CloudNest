@@ -1,0 +1,32 @@
+# =========================================================
+# Trivy ignore list — ACCEPTED risks, with justification.
+# Format: AVD/AWS rule ID per line. Reviewed and accepted for the dev env.
+# =========================================================
+
+# Public EKS API endpoint + open CIDR.
+# JUSTIFICATION: CI/CD runs Terraform + helm/kubectl from GitHub-HOSTED runners,
+# whose IPs are dynamic, so the API server must be publicly reachable.
+# Mitigations: restrict via var.cluster_public_access_cidrs, EKS RBAC/Access
+# Entries, audit logging enabled. For prod: private endpoint + self-hosted
+# runners (or a bastion) and remove these ignores.
+AVD-AWS-0040
+AVD-AWS-0041
+
+# Unrestricted egress (0.0.0.0/0) on cluster/node/rds/efs security groups.
+# JUSTIFICATION: worker nodes need outbound to pull images (ECR/registries),
+# reach AWS APIs (STS/EC2/EKS), and CoreDNS. Egress-all is standard for EKS
+# nodes; ingress is tightly restricted. Low risk.
+AVD-AWS-0104
+
+# S3 bucket not using a customer-managed KMS key.
+# JUSTIFICATION: applies to the ALB access-logs bucket — AWS ELB access-log
+# delivery ONLY supports SSE-S3 (AES256), NOT SSE-KMS/CMK. The Loki and
+# bootstrap buckets DO use customer-managed keys.
+AVD-AWS-0132
+
+# Short-form IDs (matches Trivy table output), in case the runner uses them.
+AWS-0040
+AWS-0041
+AWS-0104
+AWS-0132
+
