@@ -1,0 +1,63 @@
+{
+  "uid": "cnp-slo-dashboard",
+  "title": "Service Reliability - Are We Keeping Our Promise?",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "How Often Requests Succeed (now)",
+      "description": "Share of user requests that work right now. Our promise is 99.5%. Closer to 100% is better.",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [
+        { "expr": "sli:http_success_rate:5m", "legendFormat": "success rate" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Reliability Budget Left This Month",
+      "description": "We allow a small amount of failure each month (about 216 minutes). This shows how much of that 'budget' is still unused. 100% = none spent.",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [
+        {
+          "expr": "1 - ((1 - (sum(rate(http_requests_total{code!~\"5..\"}[30d])) / sum(rate(http_requests_total[30d])))) / (1 - 0.995))",
+          "legendFormat": "budget remaining"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "How Fast We're Using the Budget",
+      "description": "Speed at which we're spending the reliability budget. 1x = normal. Above 14x means we'll run out fast and someone gets paged.",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "slo:burnrate:1h", "legendFormat": "1h burn" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Budget Burn Speed Over Time",
+      "description": "Trend of how fast we're using the reliability budget over the last day. The fast (1h) line reacts quickly; the slow (6h) line shows sustained trouble.",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "slo:burnrate:1h", "legendFormat": "1h burn rate" },
+        { "expr": "slo:burnrate:6h", "legendFormat": "6h burn rate" }
+      ]
+    }
+  ]
+}

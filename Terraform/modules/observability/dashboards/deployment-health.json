@@ -1,0 +1,72 @@
+{
+  "uid": "cnp-deployment-health",
+  "title": "App Health - Are My Apps Running OK?",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(kube_pod_info, namespace)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "App Restarts (lower is better)",
+      "description": "How many times each app has unexpectedly restarted. A flat line is healthy; climbing means an app keeps crashing.",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"$namespace\"})",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Apps That Ran Out of Memory",
+      "description": "Count of apps stopped because they used too much memory (OOMKilled). Should be 0. Above 0 means an app needs more memory or has a leak.",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(kube_pod_container_status_last_terminated_reason{reason=\"OOMKilled\", namespace=\"$namespace\"})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Running Copies: Wanted vs Actually Up",
+      "description": "Each app should have a target number of copies running. When 'available' drops below 'desired', the app is short of healthy copies.",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "kube_deployment_status_replicas{namespace=\"$namespace\"}",
+          "legendFormat": "{{deployment}} desired"
+        },
+        {
+          "expr": "kube_deployment_status_replicas_available{namespace=\"$namespace\"}",
+          "legendFormat": "{{deployment}} available"
+        }
+      ]
+    }
+  ]
+}
+

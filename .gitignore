@@ -1,0 +1,30 @@
+# =========================================================
+# Terraform
+# =========================================================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Variable files that may contain secrets - review before committing.
+# dev.tfvars currently has NO secrets (those go via TF_VAR_ env), so it's
+# committed on purpose. Uncomment to ignore other secret tfvars:
+# *.auto.tfvars
+# secrets.tfvars
+
+# Keep the lock file committed (recommended) - do NOT ignore:
+# .terraform.lock.hcl
+
+# Plan output
+tfplan
+*.tfplan
+
+# =========================================================
+# OS / editor
+# =========================================================
+.DS_Store
+../.idea/
+.vscode/
+*.swp
+

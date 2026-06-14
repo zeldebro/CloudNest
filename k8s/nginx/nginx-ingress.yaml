@@ -1,0 +1,80 @@
+# =========================================================
+# Sample nginx app + Ingress
+# The AWS Load Balancer Controller watches this Ingress and AUTOMATICALLY
+# provisions an ALB. No ALB is defined here directly.
+#
+# Apply:  kubectl apply -f nginx-ingress.yaml
+# Then:   kubectl get ingress nginx -n demo   (shows the ALB DNS once ready)
+#
+# Fill the annotations marked <...> from Terraform outputs:
+#   terraform output -raw  (waf web_acl_arn / cloudwatch alb_logs_bucket)
+# =========================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: public.ecr.aws/nginx/nginx:1.27
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: demo
+spec:
+  # ClusterIP is fine: with target-type "ip" the ALB targets pod IPs directly
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx
+  namespace: demo
+  annotations:
+    # internet-facing = public ALB; change to "internal" for a private ALB
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # register pod IPs directly (works with the VPC CNI)
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    # --- Attach the WAF Web ACL (from: terraform output web_acl_arn) ---
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "<WAF_WEB_ACL_ARN>"
+    # --- Enable ALB access logs to the S3 bucket (from: alb_logs_bucket output) ---
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      access_logs.s3.enabled=true,access_logs.s3.bucket=<ALB_LOGS_BUCKET>
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx
+                port:
+                  number: 80
+

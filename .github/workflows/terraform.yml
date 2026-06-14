@@ -1,0 +1,274 @@
+name: Terraform Dev
+
+# =========================================================
+# Production-grade Terraform CI/CD for the dev environment.
+#
+#   Pull request  -> validate + plan (plan posted as a PR comment)
+#   Push to main  -> validate + plan + APPLY (gated by the "dev" Environment)
+#
+# Auth is keyless via GitHub OIDC -> AWS IAM role (no static keys).
+# The exact plan reviewed on the PR is the plan that gets applied
+# (saved as an artifact and re-used by the apply job).
+# =========================================================
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Terraform/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Choose what to run when triggering manually"
+        type: choice
+        options:
+          - apply
+          - destroy
+        default: apply
+
+# Least-privilege defaults; jobs opt into more as needed.
+permissions:
+  contents: read
+
+# One run per ref. Never cancel an in-flight apply (state corruption risk).
+concurrency:
+  group: terraform-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: Terraform/environments/dev
+  TF_VERSION: "1.9.5"
+  # CI hygiene: non-interactive automation mode.
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  # -------------------------------------------------------
+  # 1) VALIDATE: fmt, init (-backend=false), validate, lint, security scan.
+  #    Runs on every PR and push. No cloud credentials needed.
+  # -------------------------------------------------------
+  validate:
+    name: Validate & Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive ../..
+
+      # No backend access required just to validate syntax/config.
+      - name: Terraform Init (no backend)
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run TFLint
+        run: tflint --recursive --chdir ../..
+
+      # Static security analysis (CIS / misconfig). Fails on CRITICAL/HIGH.
+      # Set exit-code: "0" for warnings-only while you triage findings.
+      - name: Trivy IaC scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          scan-ref: Terraform
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+
+  # -------------------------------------------------------
+  # 2) PLAN: real plan against remote state. Saves the plan as an artifact
+  #    and posts a summary as a PR comment.
+  # -------------------------------------------------------
+  plan:
+    name: Plan (dev)
+    needs: validate
+    # Skip planning when this is a manual DESTROY run (don't re-create anything).
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: dev # read-only here; approval is enforced on apply
+    permissions:
+      contents: read
+      id-token: write # OIDC
+      pull-requests: write # post plan comment
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -lock-timeout=5m
+
+      - name: Terraform Plan
+        id: plan
+        env:
+          TF_VAR_gitlab_username: ${{ secrets.TF_VAR_GITLAB_USERNAME }}
+        run: |
+          terraform plan -lock-timeout=5m -var-file=dev.tfvars -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+
+      # Save the binary plan so APPLY uses the EXACT reviewed plan.
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.sha }}
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          retention-days: 5
+          if-no-files-found: error
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('${{ env.TF_WORKING_DIR }}/plan.txt', 'utf8');
+            const max = 60000;
+            const shown = plan.length > max ? plan.slice(0, max) + "\n... (truncated, see job log)" : plan;
+            const body = `#### Terraform Plan (dev) 📖\n\n<details><summary>Show plan</summary>\n\n\`\`\`terraform\n${shown}\n\`\`\`\n\n</details>`;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  # -------------------------------------------------------
+  # 3) APPLY: only on push to main, only after "dev" Environment approval.
+  #    Re-uses the artifact plan from the plan job.
+  # -------------------------------------------------------
+  apply:
+    name: Apply (dev)
+    needs: plan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: dev # add required reviewers here for a manual approval gate
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.sha }}
+          path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Init
+        run: terraform init -lock-timeout=5m
+
+      # Apply the saved plan exactly (no re-plan, no -auto-approve surprises).
+      - name: Terraform Apply
+        env:
+          TF_VAR_gitlab_username: ${{ secrets.TF_VAR_GITLAB_USERNAME }}
+        run: terraform apply -lock-timeout=5m tfplan
+
+  # -------------------------------------------------------
+  # 4) DESTROY: manual only. Run the workflow via "Run workflow" and pick
+  #    action = destroy. Skips plan/apply, tears down the dev stack.
+  #    Gated by the "dev" Environment approval (same reviewers as apply).
+  # -------------------------------------------------------
+  destroy:
+    name: Destroy (dev)
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: dev # requires manual approval before anything is destroyed
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # Best-effort cleanup of resources created OUTSIDE Terraform state
+      # (ALBs from the LB controller, type=LoadBalancer services) so the VPC
+      # can be deleted. '|| true' = don't fail if kubectl access isn't available.
+      - name: Pre-destroy cleanup (best effort)
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name cloudnest-dev-eks-cluster || true
+          kubectl delete ingress --all --all-namespaces --timeout=120s || true
+          kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer --timeout=120s || true
+          # Empty the log buckets so S3 destroy doesn't fail on non-empty buckets
+          ACCT=$(aws sts get-caller-identity --query Account --output text)
+          aws s3 rm "s3://cloudnest-dev-loki-$ACCT" --recursive || true
+          aws s3 rm "s3://cloudnest-dev-alb-logs-$ACCT" --recursive || true
+
+      - name: Terraform Init
+        run: terraform init -lock-timeout=5m
+
+      - name: Terraform Destroy
+        env:
+          TF_VAR_gitlab_username: ${{ secrets.TF_VAR_GITLAB_USERNAME }}
+        run: terraform destroy -auto-approve -lock-timeout=5m -var-file=dev.tfvars
+
+

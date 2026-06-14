@@ -1,0 +1,68 @@
+{
+  "uid": "cnp-alertmanager-status",
+  "title": "Alerts - What's Currently Wrong?",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(kube_pod_info, namespace)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active Problems Right Now",
+      "description": "Live list of issues the system has detected, grouped by name and severity. Empty = all good.",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (alertname, severity) (ALERTS{alertstate=\"firing\"})",
+          "legendFormat": "{{alertname}} ({{severity}})"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Is the Alert System Healthy?",
+      "description": "Shows whether the alerting service itself is up (1 = healthy). If this is 0, alerts may not be delivered.",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "up{job=~\".*alertmanager.*\"}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Alert Messages Being Sent",
+      "description": "Rate of notifications sent out (e.g. to Slack/email). Spikes line up with new problems being reported.",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(alertmanager_notifications_total[5m])",
+          "legendFormat": "{{integration}}"
+        }
+      ]
+    }
+  ]
+}
+
