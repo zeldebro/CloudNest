@@ -16,6 +16,12 @@ resource "helm_release" "controller" {
   wait    = true
   timeout = 600
 
+  # Self-healing installs: if the release fails (e.g. timeout), atomic rolls it
+  # back (uninstalls) instead of leaving a "failed" release behind, so the next
+  # apply does a clean install - no manual `helm uninstall` needed.
+  atomic          = true
+  cleanup_on_fail = true
+
   set {
     name  = "clusterName"
     value = var.cluster_name

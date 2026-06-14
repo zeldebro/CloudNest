@@ -26,6 +26,11 @@ resource "helm_release" "cloudnest_karpenter" {
   wait    = true
   timeout = 900
 
+  # Self-healing installs: a failed release auto-rolls-back instead of being left
+  # in a "failed" state, so a retry installs cleanly (no manual uninstall).
+  atomic          = true
+  cleanup_on_fail = true
+
   values = [
     # Single source of truth: addon values template inside this module.
     # Env-specific values (cluster_name, etc.) arrive via Terraform variables.

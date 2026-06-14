@@ -7,6 +7,13 @@ resource "helm_release" "cloudnest_prometheus" {
   version   = var.chart_version
   namespace = kubernetes_namespace.monitoring.metadata[0].name
 
+  # Wait for readiness, and self-heal on failure: atomic rolls a failed install
+  # back (uninstalls it) so the next apply installs cleanly - no manual uninstall.
+  wait            = true
+  timeout         = 900
+  atomic          = true
+  cleanup_on_fail = true
+
   # efs-sc persistence (Prometheus 50Gi + Grafana) and Grafana admin.existingSecret
   values = [
     templatefile("${path.module}/values/prometheus.yaml.tpl", {

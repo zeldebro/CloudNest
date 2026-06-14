@@ -9,6 +9,13 @@ resource "helm_release" "cloudnest_loki" {
   version   = var.loki_chart_version
   namespace = kubernetes_namespace.monitoring.metadata[0].name
 
+  # Wait for readiness, and self-heal on failure (auto rollback on a failed
+  # install) so retries install cleanly without a manual `helm uninstall`.
+  wait            = true
+  timeout         = 900
+  atomic          = true
+  cleanup_on_fail = true
+
   values = [
     templatefile("${path.module}/values/loki.yaml.tpl", {
       bucket            = aws_s3_bucket.cloudnest_loki_s3_bucket.id

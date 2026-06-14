@@ -9,6 +9,12 @@ resource "helm_release" "cloudnest_promtail" {
   version   = var.promtail_chart_version
   namespace = kubernetes_namespace.monitoring.metadata[0].name
 
+  # Wait for the DaemonSet to roll out; self-heal on failure (auto rollback).
+  wait            = true
+  timeout         = 600
+  atomic          = true
+  cleanup_on_fail = true
+
   values = [
     templatefile("${path.module}/values/promtail.yaml.tpl", {
       loki_release = helm_release.cloudnest_loki.name

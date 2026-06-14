@@ -12,6 +12,13 @@ resource "helm_release" "gitlab_runner" {
   namespace        = var.namespace
   create_namespace = true
 
+  # Wait for the runner to be Ready; self-heal on failure (auto rollback) so a
+  # retry installs cleanly without a manual `helm uninstall`.
+  wait            = true
+  timeout         = 600
+  atomic          = true
+  cleanup_on_fail = true
+
   # GitLab instance the runner registers with
   set {
     name  = "gitlabUrl"
