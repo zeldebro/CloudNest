@@ -44,11 +44,14 @@ resource "aws_efs_file_system" "this" {
 
 # --- Mount targets: one ENI per private subnet/AZ ---
 # A pod can ONLY mount EFS if its AZ has a mount target. One per subnet = all AZs covered.
+# Use count (not for_each): subnet IDs are created in this same apply, so they are
+# unknown at plan time. for_each needs known keys; count only needs the list LENGTH,
+# which IS known (3 subnets), so the plan resolves cleanly.
 resource "aws_efs_mount_target" "this" {
-  for_each = toset(var.private_subnet_ids)
+  count = length(var.private_subnet_ids)
 
   file_system_id  = aws_efs_file_system.this.id
-  subnet_id       = each.value
+  subnet_id       = var.private_subnet_ids[count.index]
   security_groups = [aws_security_group.efs.id]
 }
 
