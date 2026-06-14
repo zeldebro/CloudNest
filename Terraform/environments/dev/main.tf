@@ -172,6 +172,10 @@ module "efs" {
   private_subnet_ids     = module.vpc.private_subnet_ids
   node_security_group_id = module.security.node_security_group_id
 
+  # The SG EKS attaches to the nodes - EFS must allow NFS from it or mounts
+  # time out (the custom node SG above isn't actually attached to the nodes).
+  cluster_primary_security_group_id = module.eks.cluster_primary_security_group_id
+
   # Cluster + IRSA wiring
   cluster_name      = module.eks.cluster_name
   oidc_provider_arn = module.irsa.oidc_provider_arn

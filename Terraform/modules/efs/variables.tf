@@ -20,6 +20,15 @@ variable "node_security_group_id" {
   type        = string
 }
 
+# The SG EKS auto-creates and attaches to managed-node-group instances (and pods
+# via the CNI). This is the SG that nodes ACTUALLY use, so EFS must allow NFS from
+# it - otherwise mounts time out (DeadlineExceeded) even though the custom node SG
+# is allowed. Pass module.eks.cluster_primary_security_group_id.
+variable "cluster_primary_security_group_id" {
+  description = "EKS-managed cluster security group ID (attached to nodes) allowed to reach EFS over NFS 2049"
+  type        = string
+}
+
 variable "vpc_id" {
   description = "VPC ID where the EFS security group is created"
   type        = string

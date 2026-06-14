@@ -15,12 +15,24 @@ resource "aws_security_group" "efs" {
 # Ingress: NFS from worker nodes only
 resource "aws_security_group_rule" "efs_ingress_nfs" {
   type                     = "ingress"
-  description              = "NFS from EKS worker nodes"
+  description              = "NFS from EKS worker nodes (custom node SG)"
   from_port                = 2049
   to_port                  = 2049
   protocol                 = "tcp"
   security_group_id        = aws_security_group.efs.id
   source_security_group_id = var.node_security_group_id
+}
+
+# Ingress: NFS from the EKS-managed cluster SG that nodes ACTUALLY use.
+# Without this the pods can't reach EFS and mounts fail with DeadlineExceeded.
+resource "aws_security_group_rule" "efs_ingress_nfs_cluster_sg" {
+  type                     = "ingress"
+  description              = "NFS from EKS cluster security group (real node SG)"
+  from_port                = 2049
+  to_port                  = 2049
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.efs.id
+  source_security_group_id = var.cluster_primary_security_group_id
 }
 
 # Egress: allow return traffic
