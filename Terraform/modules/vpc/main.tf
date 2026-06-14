@@ -103,6 +103,33 @@ resource "aws_route_table_association" "cloudenest_private_rt_assoc" {
   route_table_id = aws_route_table.cloudenest_private_rt.id
 }
 
+# =========================================================
+# Lock down the AWS-created "default" resources.
+# AWS auto-creates a default Security Group and Route Table with every new VPC.
+# They cannot be deleted, but leaving the default SG open (allow-all) is a CIS
+# finding (AWS 4.3). We ADOPT them into state and strip every rule so nothing
+# can ever use them. All real traffic flows through our explicit
+# subnets/route tables/security groups instead. (Default NACL left untouched.)
+# =========================================================
+
+# Default Security Group: no ingress, no egress (deny-all).
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.cloudenest_dev_vpc.id
+  # No ingress / egress blocks = all rules removed.
+  tags = {
+    Name = "${var.project}-${var.environment}-default-sg-DO-NOT-USE"
+  }
+}
+
+# Default Route Table: kept empty (no routes), only tagged for visibility.
+resource "aws_default_route_table" "default" {
+  default_route_table_id = aws_vpc.cloudenest_dev_vpc.default_route_table_id
+  tags = {
+    Name = "${var.project}-${var.environment}-default-rt-DO-NOT-USE"
+  }
+}
+
+
 # VPC flow logs (log group + IAM role come from the cloudwatch module, passed in as variables)
 resource "aws_flow_log" "cloudnest_vpc_flow_log" {
   log_destination      = var.flow_log_destination_arn

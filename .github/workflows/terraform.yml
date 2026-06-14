@@ -191,7 +191,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: dev # add required reviewers here for a manual approval gate
+    # MANUAL APPROVAL GATE: this job pauses until a "Required reviewer" of the
+    # "dev" environment approves it in the GitHub UI. Configure reviewers at:
+    # Repo > Settings > Environments > dev > Required reviewers.
+    environment: dev
     permissions:
       contents: read
       id-token: write
@@ -224,10 +227,24 @@ jobs:
         run: terraform init -lock-timeout=5m
 
       # Apply the saved plan exactly (no re-plan, no -auto-approve surprises).
+      # SELF-HEAL: if the saved plan is "stale" (state advanced after the plan was
+      # created — e.g. a previous apply partially succeeded then a step failed, and
+      # this is a retry), fall back to a fresh plan+apply so the retry can converge
+      # instead of dead-locking forever on the stale artifact.
       - name: Terraform Apply
         env:
           TF_VAR_gitlab_username: ${{ secrets.TF_VAR_GITLAB_USERNAME }}
-        run: terraform apply -lock-timeout=5m tfplan
+        run: |
+          set -o pipefail
+          if terraform apply -lock-timeout=5m tfplan 2>&1 | tee apply.txt; then
+            echo "Applied saved plan successfully."
+          elif grep -q "Saved plan is stale" apply.txt; then
+            echo "::warning::Saved plan was stale (state moved on). Re-planning against current state and applying."
+            terraform apply -lock-timeout=5m -auto-approve -var-file=dev.tfvars
+          else
+            echo "::error::Apply failed for a reason other than a stale plan."
+            exit 1
+          fi
 
   # -------------------------------------------------------
   # 4) DESTROY: manual only. Run the workflow via "Run workflow" and pick
@@ -240,7 +257,11 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: dev # requires manual approval before anything is destroyed
+    # MANUAL APPROVAL GATE: dedicated "dev-destroy" environment so teardown can
+    # require its OWN (stricter) reviewers, separate from apply. Destroy pauses
+    # until a Required reviewer approves it. Configure reviewers at:
+    # Repo > Settings > Environments > dev-destroy > Required reviewers.
+    environment: dev-destroy
     permissions:
       contents: read
       id-token: write
